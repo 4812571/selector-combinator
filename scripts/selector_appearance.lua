@@ -1,38 +1,29 @@
 local SelectorAppearance = {}
 
-function SelectorAppearance.update_combinator_appearance(entity)
-    local entry = global.selector_combinators[entity.unit_number]
-
-    if not entry then
-        return
-    end
-
-    local control_behavior = entry.input_entity.get_or_create_control_behavior()
-    local parameters = control_behavior.parameters
-
-    local mode = entry.mode
+function SelectorAppearance.update_combinator_appearance(selector)
+    local mode = selector.settings.mode
+    local cb = selector.input_entity.get_or_create_control_behavior()
+    local parameters = cb.parameters
 
     if mode == "index" then
-        if entry.index_order == "ascending" then
-            parameters.operation = "*"
-        else
+        if selector.settings.index_order == "ascending" then
             parameters.operation = "/"
+        else
+            parameters.operation = "*"
         end
-    end
-
-    if mode == "count" then
-        parameters.operation = "+"
-    end
-
-    if mode == "stack_size" then
+    elseif mode == "count_inputs" then
         parameters.operation = "-"
-    end
-
-    if mode == "quality_transfer" then
+    elseif mode == "random_input" then
+        parameters.operation = "+"
+    elseif mode == "stack_size" then
+        parameters.operation = "%"
+    elseif mode == "quality_transfer" then
         parameters.operation = "%"
     end
+    
+    -- All of parameters must be written back, not just particular fields.
+    cb.parameters = parameters
 
-    control_behavior.parameters = parameters
 end
 
 return SelectorAppearance

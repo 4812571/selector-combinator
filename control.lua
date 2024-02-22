@@ -1,5 +1,6 @@
-local SelectorSimulation = require("scripts.selector_simulation")
+local SelectorAppearance = require("scripts.selector_appearance")
 local SelectorGui = require("scripts.selector_gui")
+local SelectorSimulation = require("scripts.selector_simulation")
 
 script.on_init(function()
     SelectorSimulation.init()
@@ -12,6 +13,30 @@ local selector_filter = {
 
 local function on_added(event)
     SelectorSimulation.add_combinator(event.created_entity)
+end
+
+local function on_entity_settings_pasted(event)
+    local source = event.source
+    local destination = event.destination
+
+    if not source or not destination or
+        source.name ~= "selector-combinator" or
+        destination.name ~= "selector-combinator" then
+        return
+    end
+
+    local source_unit_number = source.unit_number
+    local destination_unit_number = destination.unit_number
+
+    -- Replace source and destination with the underlying Selectors
+    source = global.selector_combinators[source.unit_number]
+    destination = global.selector_combinators[destination.unit_number]
+
+    if not source or not destination then return end
+
+    destination.settings = util.table.deepcopy(source.settings)
+
+    SelectorAppearance.update_combinator_appearance(destination)
 end
 
 local function on_entity_destroyed(event)
@@ -74,6 +99,9 @@ SelectorGui.bind_all_events()
 
 -- Added Events
 script.on_event(defines.events.on_built_entity, on_added, {selector_filter})
+
+-- Paste events
+script.on_event(defines.events.on_entity_settings_pasted, on_entity_settings_pasted)
 
 -- Removed Events
 script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed, {selector_filter})

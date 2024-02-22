@@ -51,25 +51,27 @@ function SelectorSimulation.add_combinator(entity)
     }
 
     -- Create and store the global data entry
-    local selector_data = {
-        mode = "index",
+    local selector = {
+        settings = {
+            mode = "index",
 
-        index_order = "ascending",
-        index_constant = 0,
-        index_signal = nil,
+            index_order = "descending",
+            index_constant = 0,
+            index_signal = nil,
 
-        count_signal = nil,
+            count_signal = nil,
 
-        quality_selection_signal = nil,
-        quality_target_signal = nil,
+            quality_selection_signal = nil,
+            quality_target_signal = nil,
+        },
 
         input_entity = entity,
         output_entity = output_entity,
 
-        control_behavior = control_behavior,
+        control_behavior = control_behavior
     }
 
-    global.selector_combinators[entity.unit_number] = selector_data
+    global.selector_combinators[entity.unit_number] = selector
 
     -- Update the initial appearance
     SelectorAppearance.update_combinator_appearance(entity)
@@ -115,11 +117,12 @@ local function first_suffix_of(red_network, green_network, stripped_name, signal
     return nil
 end
 
-function SelectorSimulation.update_combinator(entry)
-    local mode = entry.mode
-    local input_signals = entry.input_entity.get_merged_signals(defines.circuit_connector_id.combinator_input)
+function SelectorSimulation.update_combinator(selector)
+    local settings = selector.settings
+    local mode = settings.mode
+    local input_signals = selector.input_entity.get_merged_signals(defines.circuit_connector_id.combinator_input)
 
-    local control_behavior = entry.control_behavior
+    local control_behavior = selector.control_behavior
 
     if input_signals == nil then
         control_behavior.parameters = nil
@@ -129,13 +132,13 @@ function SelectorSimulation.update_combinator(entry)
 
 
     if mode == "index" then
-        local index_signal = entry.index_signal
+        local index_signal = settings.index_signal
 
         local index = 0
 
         if index_signal then
-            local red_input_network = entry.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
-            local green_input_network = entry.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
+            local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
+            local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
 
             local red_signal = 0
 
@@ -159,7 +162,7 @@ function SelectorSimulation.update_combinator(entry)
                 end
             end
         else
-            index = entry.index_constant
+            index = settings.index_constant or 0
         end
 
         local lua_index = index + 1
@@ -176,7 +179,7 @@ function SelectorSimulation.update_combinator(entry)
             ["descending"] = function(a, b) return a.count > b.count end,
         }
 
-        table.sort(input_signals, sorts[entry.index_order])
+        table.sort(input_signals, sorts[settings.index_order])
 
         local signal = input_signals[lua_index]
 
@@ -193,7 +196,7 @@ function SelectorSimulation.update_combinator(entry)
     end
 
     if mode == "count_inputs" then
-        local count_signal = entry.count_signal
+        local count_signal = settings.count_signal
 
         if not count_signal then
             control_behavior.parameters = nil
@@ -238,14 +241,14 @@ function SelectorSimulation.update_combinator(entry)
 
     -- Quality signals, as defined in janky quality, end with a prefix '-quality-N', where N is a number from 2 to 5.
     if mode == "quality_transfer" then
-        local quality_selection_signal = entry.quality_selection_signal
+        local quality_selection_signal = settings.quality_selection_signal
 
         if not quality_selection_signal then
             control_behavior.parameters = nil
             return
         end
 
-        local quality_target_signal = entry.quality_target_signal
+        local quality_target_signal = settings.quality_target_signal
 
         if not quality_target_signal then
             control_behavior.parameters = nil
@@ -255,8 +258,8 @@ function SelectorSimulation.update_combinator(entry)
         local selection_name_stripped = without_quality_suffix(quality_selection_signal.name)
         local target_name_stripped = without_quality_suffix(quality_target_signal.name)
 
-        local red_network = entry.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
-        local green_network = entry.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
+        local red_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
+        local green_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
 
         local selection_suffix = first_suffix_of(red_network, green_network, selection_name_stripped, quality_selection_signal.type)
 
@@ -345,8 +348,8 @@ function SelectorSimulation.update_combinator(entry)
 end
 
 function SelectorSimulation.update()
-    for _, entry in pairs(global.selector_combinators) do
-        SelectorSimulation.update_combinator(entry)
+    for _, selector in pairs(global.selector_combinators) do
+        SelectorSimulation.update_combinator(selector)
     end
 end
 
