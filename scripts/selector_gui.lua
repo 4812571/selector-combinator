@@ -18,8 +18,8 @@ local function write_text_boxes(entry, gui)
     local select_index_constant = options_flow.select_index_control_flow.select_index_select_flow.select_index_constant
     local random_input_update_interval_textfield = options_flow.random_input_update_interval_flow.random_input_update_interval_textfield
 
-    select_index_constant.text = tostring(entry.index_constant)
-    random_input_update_interval_textfield.text = tostring(entry.interval)
+    select_index_constant.text = tostring(entry.settings.index_constant)
+    random_input_update_interval_textfield.text = tostring(entry.settings.interval)
 end
 
 local function write_radio_buttons(entry, gui)
@@ -37,7 +37,7 @@ local function write_radio_buttons(entry, gui)
         button.state = false
     end
 
-    radio_buttons[entry.mode].state = true
+    radio_buttons[entry.settings.mode].state = true
 end
 
 local function write_switches(entry, gui)
@@ -45,7 +45,7 @@ local function write_switches(entry, gui)
 
     local select_index_switch = options_flow.select_index_control_flow.select_index_switch_flow.select_index_switch
 
-    if entry.index_order == "ascending" then
+    if entry.settings.index_order == "ascending" then
         select_index_switch.switch_state = "right"
     else
         select_index_switch.switch_state = "left"
@@ -62,10 +62,10 @@ local function write_signals(entry, gui)
         quality_target = options_flow.quality_target_signal_flow.quality_target_signal,
     }
 
-    selection_signal_guis.select_index.elem_value = entry.index_signal
-    selection_signal_guis.count_inputs.elem_value = entry.count_signal
-    selection_signal_guis.quality_selection.elem_value = entry.quality_selection_signal
-    selection_signal_guis.quality_target.elem_value = entry.quality_target_signal
+    selection_signal_guis.select_index.elem_value = entry.settings.index_signal
+    selection_signal_guis.count_inputs.elem_value = entry.settings.count_signal
+    selection_signal_guis.quality_selection.elem_value = entry.settings.quality_selection_signal
+    selection_signal_guis.quality_target.elem_value = entry.settings.quality_target_signal
 end
 
 function SelectorGui.on_gui_added(player, entity)
@@ -529,27 +529,27 @@ function SelectorGui.bind_all_events()
         end
 
         if element == radio_buttons.select_index then
-            selector_entry.mode = "index"
+            selector_entry.settings.mode = "index"
         end
 
         if element == radio_buttons.count_inputs then
-            selector_entry.mode = "count_inputs"
+            selector_entry.settings.mode = "count_inputs"
         end
 
         if element == radio_buttons.random_input then
-            selector_entry.mode = "random-input"
+            selector_entry.settings.mode = "random_input"
         end
 
         if element == radio_buttons.stack_size then
-            selector_entry.mode = "stack_size"
+            selector_entry.settings.mode = "stack_size"
         end
 
         if element == radio_buttons.quality_transfer then
-            selector_entry.mode = "quality_transfer"
+            selector_entry.settings.mode = "quality_transfer"
         end
 
         if find(radio_buttons, element) then
-            SelectorAppearance.update_combinator_appearance(selector_entry.input_entity)
+            SelectorAppearance.update_combinator_appearance(selector_entry)
         end
     end)
 
@@ -590,19 +590,19 @@ function SelectorGui.bind_all_events()
         local element = eventData.element
 
         if eventData.element == selection_signal_guis.select_index then
-            selector_entry.index_signal = eventData.element.elem_value
+            selector_entry.settings.index_signal = eventData.element.elem_value
         end
 
         if eventData.element == selection_signal_guis.count_inputs then
-            selector_entry.count_signal = eventData.element.elem_value
+            selector_entry.settings.count_signal = eventData.element.elem_value
         end
 
         if eventData.element == selection_signal_guis.quality_selection then
-            selector_entry.quality_selection_signal = eventData.element.elem_value
+            selector_entry.settings.quality_selection_signal = eventData.element.elem_value
         end
 
         if eventData.element == selection_signal_guis.quality_target then
-            selector_entry.quality_target_signal = eventData.element.elem_value
+            selector_entry.settings.quality_target_signal = eventData.element.elem_value
         end
     end)
 
@@ -637,11 +637,11 @@ function SelectorGui.bind_all_events()
         local random_input_update_interval_textfield = options_flow.random_input_update_interval_flow.random_input_update_interval_textfield
 
         if eventData.element == select_index_constant then
-            selector_entry.index_constant = tonumber(eventData.element.text)
+            selector_entry.settings.index_constant = tonumber(eventData.element.text)
         end
 
         if eventData.element == random_input_update_interval_textfield then
-            selector_entry.interval = tonumber(eventData.element.text)
+            selector_entry.settings.interval = tonumber(eventData.element.text)
         end
     end)
 
@@ -677,12 +677,12 @@ function SelectorGui.bind_all_events()
 
         if eventData.element == select_index_switch then
             if eventData.element.switch_state == "left" then
-                selector_entry.index_order = "descending"
+                selector_entry.settings.index_order = "descending"
             else
-                selector_entry.index_order = "ascending"
+                selector_entry.settings.index_order = "ascending"
             end
 
-            SelectorAppearance.update_combinator_appearance(selector_entry.input_entity)
+            SelectorAppearance.update_combinator_appearance(selector_entry)
         end
     end)
 end
