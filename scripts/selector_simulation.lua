@@ -19,7 +19,9 @@ function SelectorSimulation.init()
     global.selector_combinators = {}
 end
 
-function SelectorSimulation.add_combinator(entity)
+function SelectorSimulation.add_combinator(event)
+    local entity = event.created_entity
+
     -- Register the entity for the destruction event.
     script.register_on_entity_destroyed(entity)
 
@@ -71,10 +73,15 @@ function SelectorSimulation.add_combinator(entity)
         control_behavior = control_behavior
     }
 
+    -- restore settings from blueprint
+    if event.tags and event.tags["selector-combinator"] then
+        selector.settings = util.table.deepcopy(event.tags["selector-combinator"])
+    end
+
     global.selector_combinators[entity.unit_number] = selector
 
     -- Update the initial appearance
-    SelectorAppearance.update_combinator_appearance(entity)
+    SelectorAppearance.update_combinator_appearance(selector)
 end
 
 function SelectorSimulation.remove_combinator(unit_number)
