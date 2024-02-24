@@ -1,4 +1,6 @@
-if global and global.selector_combinators then
+if not global then return end
+
+if global.selector_combinators then
     for _, selector in pairs(global.selector_combinators) do
         -- move copyable settings from selector to selector.settings
         if not selector.settings then
@@ -20,10 +22,17 @@ if global and global.selector_combinators then
             selector.quality_selection_signal = nil
             selector.quality_target_signal = nil
         end
-        
-        -- Ensure that the index constant is not nil
+
         if not selector.settings.index_constant then
             selector.settings.index_constant = 0
         end
+
+        if not selector.settings.interval then
+            selector.settings.interval = 0
+        end
     end
+end
+
+if not global.rng then
+    global.rng = game.create_random_generator()
 end
