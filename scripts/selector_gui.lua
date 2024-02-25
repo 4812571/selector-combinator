@@ -1,4 +1,5 @@
 local SelectorAppearance = require("scripts.selector_appearance")
+local SelectorSimulation = require("scripts.selector_simulation")
 
 local SelectorGui = {}
 
@@ -558,6 +559,8 @@ function SelectorGui.bind_all_events()
         if find(radio_buttons, element) then
             SelectorAppearance.update_combinator_appearance(selector_entry)
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     script.on_event(defines.events.on_gui_elem_changed, function(eventData)
@@ -621,6 +624,8 @@ function SelectorGui.bind_all_events()
         if eventData.element == selection_signal_guis.quality_target then
             selector_entry.settings.quality_target_signal = eventData.element.elem_value
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     script.on_event(defines.events.on_gui_text_changed, function(eventData)
@@ -660,6 +665,8 @@ function SelectorGui.bind_all_events()
         if eventData.element == random_input_update_interval_textfield then
             selector_entry.settings.interval = tonumber(eventData.element.text) or 0
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     -- handle the switch going left or right
@@ -701,6 +708,8 @@ function SelectorGui.bind_all_events()
 
             SelectorAppearance.update_combinator_appearance(selector_entry)
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 end
 
