@@ -152,9 +152,11 @@ function SelectorSimulation.update_combinator(selector)
 
     if input_signals == nil then
         -- clear any cached state required
-
-        -- in the case of count_inputs, we just need to update our count to 0
-        if cache.input_count then
+        if mode == "index" and #cache.old_inputs ~= 0 then
+            cache.old_inputs = {}
+            cache.old_output_name = nil
+            cache.old_output_count = 0
+        elseif mode == "count_inputs" then
             cache.input_count = 0
         end
 
@@ -163,65 +165,111 @@ function SelectorSimulation.update_combinator(selector)
     end
 
     if mode == "index" then
+        local old_inputs = cache.old_inputs
+        if #input_signals == #old_inputs then
+            local new_sig
+            local old_sig
+            local inputs_match = true
+
+            for i=1, #input_signals do
+                new_sig = input_signals[i]
+                old_sig = old_inputs[i]
+                if new_sig.count ~= old_sig.count or new_sig.signal.name ~= old_sig.signal.name then
+                    -- correct mismatch, flag mismatch, and continue comparing
+                    old_inputs[i] = new_sig
+                    inputs_match = false
+                end
+            end
+
+            if inputs_match then return end
+        else
+            -- the input count mismatches, update the cache
+            cache.old_inputs = input_signals
+        end
+
         local index_signal = settings.index_signal
+        local signal
 
-        local index = 0
-
-        if index_signal then
-            local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
-            local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
-
-            local red_signal = 0
-
-            if red_input_network then
-                red_signal = red_input_network.get_signal(index_signal)
-            end
-
-            local green_signal = 0
-
-            if green_input_network then
-                green_signal = green_input_network.get_signal(index_signal)
-            end
-
-            index = red_signal + green_signal
-
-            -- Remove the index signal from the input signals
-            for i, signal in ipairs(input_signals) do
-                if signal.signal.name == index_signal.name then
-                    table.remove(input_signals, i)
-                    break
+        if not index_signal and settings.index_constant == 0 then
+            -- optimize for the common case of searching for min or max
+            signal = input_signals[1]
+            local count = signal.count
+            if settings.index_order == "ascending" then
+                for _, v in pairs(input_signals) do
+                    if v.count < count then
+                        signal = v
+                        count = v.count
+                    end
+                end
+            else
+                for _, v in pairs(input_signals) do
+                    if v.count > count then
+                        signal = v
+                        count = v.count
+                    end
                 end
             end
         else
-            index = settings.index_constant or 0
+            local index = 0
+
+            if index_signal then
+                local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
+                local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
+
+                local red_signal = 0
+
+                if red_input_network then
+                    red_signal = red_input_network.get_signal(index_signal)
+                end
+
+                local green_signal = 0
+
+                if green_input_network then
+                    green_signal = green_input_network.get_signal(index_signal)
+                end
+
+                index = red_signal + green_signal
+
+                -- Remove the index signal from the input signals
+                for i, v in ipairs(input_signals) do
+                    if v.signal.name == index_signal.name then
+                        table.remove(input_signals, i)
+                        break
+                    end
+                end
+            else
+                index = settings.index_constant or 0
+            end
+
+            local lua_index = index + 1
+
+            -- If the input signal is out of bounds, write nothing to the output constant combinator.
+            if lua_index < 1 or lua_index > #input_signals then
+                selector.control_behavior.parameters = nil
+
+                return
+            end
+
+            local sorts = {
+                ["ascending"] = function(a, b) return a.count < b.count end,
+                ["descending"] = function(a, b) return a.count > b.count end,
+            }
+
+            table.sort(input_signals, sorts[settings.index_order])
+
+            signal = input_signals[lua_index]
         end
 
-        local lua_index = index + 1
-
-        -- If the input signal is out of bounds, write nothing to the output constant combinator.
-        if lua_index < 1 or lua_index > #input_signals then
-            selector.control_behavior.parameters = nil
-
-            return
-        end
-
-        local sorts = {
-            ["ascending"] = function(a, b) return a.count < b.count end,
-            ["descending"] = function(a, b) return a.count > b.count end,
-        }
-
-        table.sort(input_signals, sorts[settings.index_order])
-
-        local signal = input_signals[lua_index]
-
-        -- Write the signal to the output constant combinator.
-        selector.control_behavior.parameters = {
-            {
+        -- Determine if we actually need to update our output
+        if cache.old_output_count ~= signal.count or cache.old_output_name ~= signal.signal.name then
+            cache.old_output_name = signal.signal.name
+            cache.old_output_count = signal.count
+            selector.control_behavior.parameters = {{
                 signal = signal.signal,
                 count = signal.count,
-                index = 1,
-            },
-        }
+                index = 1
+            }}
+        end
 
     elseif mode == "random_input" then
         local signal = input_signals[global.rng(#input_signals)]
@@ -377,7 +425,7 @@ function SelectorSimulation.clear_caches_and_force_update(selector)
 
     -- 2. Detect the mode and create just the caches we need
     if selector.settings.mode == "index" then
-        local placeholder = 0
+        selector.cache.old_inputs = {}
 
     elseif selector.settings.mode == "count_inputs" then
         selector.cache.input_count = 0
@@ -385,7 +433,7 @@ function SelectorSimulation.clear_caches_and_force_update(selector)
         if selector.settings.count_signal then
             selector.cache.output = {{
                 signal = selector.settings.count_signal,
-                -- count = count, -- Don't set the count; it will be written before we ever output it.
+                -- Don't set .count; it will be written before we ever output it.
                 index = 1
             }}
         end
