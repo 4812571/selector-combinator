@@ -119,21 +119,15 @@ end
 local function on_gui_closed(event)
     local element = event.element
 
-    if not element then
-        return
-    end
-
-    if element.name ~= "selector-gui" then
+    if not element or element.name ~= "selector_gui" then
         return
     end
 
     local player = game.get_player(event.player_index)
 
-    if not player then
-        return
+    if player then
+        SelectorGui.on_gui_removed(player)
     end
-
-    SelectorGui.gui_closed(player)
 end
 
 local function on_tick()
