@@ -637,11 +637,11 @@ function SelectorGui.bind_all_events()
         local random_input_update_interval_textfield = options_flow.random_input_update_interval_flow.random_input_update_interval_textfield
 
         if eventData.element == select_index_constant then
-            selector_entry.settings.index_constant = tonumber(eventData.element.text)
+            selector_entry.settings.index_constant = tonumber(eventData.element.text) or 0
         end
 
         if eventData.element == random_input_update_interval_textfield then
-            selector_entry.settings.interval = tonumber(eventData.element.text)
+            selector_entry.settings.interval = tonumber(eventData.element.text) or 0
         end
     end)
 

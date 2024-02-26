@@ -9,6 +9,9 @@ local SelectorSimulation = {}
 -- "count_inputs"
 -- - count the number of input signals, then output the result
 
+-- "random_input"
+-- - output a randomly selected signal from among the inputs
+
 -- "stack_size"
 -- - output the stack sizes of the input signals
 
@@ -17,6 +20,7 @@ local SelectorSimulation = {}
 
 function SelectorSimulation.init()
     global.selector_combinators = {}
+    global.rng = game.create_random_generator()
 end
 
 function SelectorSimulation.add_combinator(event)
@@ -62,6 +66,8 @@ function SelectorSimulation.add_combinator(event)
             index_signal = nil,
 
             count_signal = nil,
+            
+            interval = 0,
 
             quality_selection_signal = nil,
             quality_target_signal = nil,
@@ -127,8 +133,12 @@ end
 function SelectorSimulation.update_combinator(selector)
     local settings = selector.settings
     local mode = settings.mode
-    local input_signals = selector.input_entity.get_merged_signals(defines.circuit_connector_id.combinator_input)
 
+    if mode == "random_input" and game.tick % settings.interval ~= 0 then
+        return
+    end
+
+    local input_signals = selector.input_entity.get_merged_signals(defines.circuit_connector_id.combinator_input)
     local control_behavior = selector.control_behavior
 
     if input_signals == nil then
@@ -200,6 +210,16 @@ function SelectorSimulation.update_combinator(selector)
         }
 
         return
+    end
+
+    if mode == "random_input" then
+        local signal = input_signals[global.rng(#input_signals)]
+
+        control_behavior.parameters = {{
+            signal = signal.signal,
+            count = signal.count,
+            index = 1
+        }}
     end
 
     if mode == "count_inputs" then
