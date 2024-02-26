@@ -94,7 +94,13 @@ function SelectorSimulation.add_combinator(event)
 end
 
 function SelectorSimulation.remove_combinator(unit_number)
+    local selector = global.selector_combinators[unit_number]
+
     global.selector_combinators[unit_number] = nil
+
+    if selector and selector.output_entity then
+        selector.output_entity.destroy()
+    end
 end
 
 local function without_quality_suffix(name)
