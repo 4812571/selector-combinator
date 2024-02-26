@@ -1,3 +1,5 @@
+local SelectorSimulation = require("scripts.selector_simulation")
+
 if not global then return end
 
 if global.selector_combinators then
@@ -30,6 +32,8 @@ if global.selector_combinators then
         if not selector.settings.interval then
             selector.settings.interval = 0
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector)
     end
 end
 

@@ -1,4 +1,5 @@
 local SelectorAppearance = require("scripts.selector_appearance")
+local SelectorSimulation = require("scripts.selector_simulation")
 
 local SelectorGui = {}
 
@@ -468,6 +469,13 @@ function SelectorGui.on_gui_removed(player)
     end
 end
 
+local function is_logic_signal(signal)
+    if signal and (signal.name == "signal-anything" or signal.name == "signal-each" or signal.name == "signal-everything") then
+        return true
+    end
+    return false
+end
+
 function SelectorGui.bind_all_events()
     script.on_event(defines.events.on_gui_click, function(eventData)
         local element = eventData.element
@@ -551,6 +559,8 @@ function SelectorGui.bind_all_events()
         if find(radio_buttons, element) then
             SelectorAppearance.update_combinator_appearance(selector_entry)
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     script.on_event(defines.events.on_gui_elem_changed, function(eventData)
@@ -590,11 +600,21 @@ function SelectorGui.bind_all_events()
         local element = eventData.element
 
         if eventData.element == selection_signal_guis.select_index then
-            selector_entry.settings.index_signal = eventData.element.elem_value
+            local signal = eventData.element.elem_value
+            if is_logic_signal(signal) then
+                eventData.element.elem_value = nil
+                signal = nil
+            end        
+            selector_entry.settings.index_signal = signal
         end
 
         if eventData.element == selection_signal_guis.count_inputs then
-            selector_entry.settings.count_signal = eventData.element.elem_value
+            local signal = eventData.element.elem_value
+            if is_logic_signal(signal) then
+                eventData.element.elem_value = nil
+                signal = nil
+            end
+            selector_entry.settings.count_signal = signal
         end
 
         if eventData.element == selection_signal_guis.quality_selection then
@@ -604,6 +624,8 @@ function SelectorGui.bind_all_events()
         if eventData.element == selection_signal_guis.quality_target then
             selector_entry.settings.quality_target_signal = eventData.element.elem_value
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     script.on_event(defines.events.on_gui_text_changed, function(eventData)
@@ -643,6 +665,8 @@ function SelectorGui.bind_all_events()
         if eventData.element == random_input_update_interval_textfield then
             selector_entry.settings.interval = tonumber(eventData.element.text) or 0
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 
     -- handle the switch going left or right
@@ -684,6 +708,8 @@ function SelectorGui.bind_all_events()
 
             SelectorAppearance.update_combinator_appearance(selector_entry)
         end
+
+        SelectorSimulation.clear_caches_and_force_update(selector_entry)
     end)
 end
 

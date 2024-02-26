@@ -88,10 +88,19 @@ function SelectorSimulation.add_combinator(event)
 
     -- Update the initial appearance
     SelectorAppearance.update_combinator_appearance(selector)
+
+    -- Get this selector into its running state
+    SelectorSimulation.clear_caches_and_force_update(selector)
 end
 
 function SelectorSimulation.remove_combinator(unit_number)
+    local selector = global.selector_combinators[unit_number]
+
     global.selector_combinators[unit_number] = nil
+
+    if selector and selector.output_entity then
+        selector.output_entity.destroy()
+    end
 end
 
 local function without_quality_suffix(name)
@@ -139,112 +148,147 @@ function SelectorSimulation.update_combinator(selector)
     end
 
     local input_signals = selector.input_entity.get_merged_signals(defines.circuit_connector_id.combinator_input)
-    local control_behavior = selector.control_behavior
+    local cache = selector.cache
 
     if input_signals == nil then
-        control_behavior.parameters = nil
+        -- clear any cached state required
+        if mode == "index" and #cache.old_inputs ~= 0 then
+            cache.old_inputs = {}
+            cache.old_output_name = nil
+            cache.old_output_count = 0
+        elseif mode == "count_inputs" then
+            cache.input_count = 0
+        end
 
+        selector.control_behavior.parameters = nil
         return
     end
 
-
     if mode == "index" then
+        local old_inputs = cache.old_inputs
+        if #input_signals == #old_inputs then
+            local new_sig
+            local old_sig
+            local inputs_match = true
+
+            for i=1, #input_signals do
+                new_sig = input_signals[i]
+                old_sig = old_inputs[i]
+                if new_sig.count ~= old_sig.count or new_sig.signal.name ~= old_sig.signal.name then
+                    -- correct mismatch, flag mismatch, and continue comparing
+                    old_inputs[i] = new_sig
+                    inputs_match = false
+                end
+            end
+
+            if inputs_match then return end
+        else
+            -- the input count mismatches, update the cache
+            cache.old_inputs = input_signals
+        end
+
         local index_signal = settings.index_signal
+        local signal
 
-        local index = 0
-
-        if index_signal then
-            local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
-            local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
-
-            local red_signal = 0
-
-            if red_input_network then
-                red_signal = red_input_network.get_signal(index_signal)
-            end
-
-            local green_signal = 0
-
-            if green_input_network then
-                green_signal = green_input_network.get_signal(index_signal)
-            end
-
-            index = red_signal + green_signal
-
-            -- Remove the index signal from the input signals
-            for i, signal in ipairs(input_signals) do
-                if signal.signal.name == index_signal.name then
-                    table.remove(input_signals, i)
-                    break
+        if not index_signal and settings.index_constant == 0 then
+            -- optimize for the common case of searching for min or max
+            signal = input_signals[1]
+            local count = signal.count
+            if settings.index_order == "ascending" then
+                for _, v in pairs(input_signals) do
+                    if v.count < count then
+                        signal = v
+                        count = v.count
+                    end
+                end
+            else
+                for _, v in pairs(input_signals) do
+                    if v.count > count then
+                        signal = v
+                        count = v.count
+                    end
                 end
             end
         else
-            index = settings.index_constant or 0
+            local index = 0
+
+            if index_signal then
+                local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
+                local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
+
+                local red_signal = 0
+
+                if red_input_network then
+                    red_signal = red_input_network.get_signal(index_signal)
+                end
+
+                local green_signal = 0
+
+                if green_input_network then
+                    green_signal = green_input_network.get_signal(index_signal)
+                end
+
+                index = red_signal + green_signal
+
+                -- Remove the index signal from the input signals
+                for i, v in ipairs(input_signals) do
+                    if v.signal.name == index_signal.name then
+                        table.remove(input_signals, i)
+                        break
+                    end
+                end
+            else
+                index = settings.index_constant or 0
+            end
+
+            local lua_index = index + 1
+
+            -- If the input signal is out of bounds, write nothing to the output constant combinator.
+            if lua_index < 1 or lua_index > #input_signals then
+                selector.control_behavior.parameters = nil
+
+                return
+            end
+
+            local sorts = {
+                ["ascending"] = function(a, b) return a.count < b.count end,
+                ["descending"] = function(a, b) return a.count > b.count end,
+            }
+
+            table.sort(input_signals, sorts[settings.index_order])
+
+            signal = input_signals[lua_index]
         end
 
-        local lua_index = index + 1
-
-        -- If the input signal is out of bounds, write nothing to the output constant combinator.
-        if lua_index < 1 or lua_index > #input_signals then
-            control_behavior.parameters = nil
-
-            return
-        end
-
-        local sorts = {
-            ["ascending"] = function(a, b) return a.count < b.count end,
-            ["descending"] = function(a, b) return a.count > b.count end,
-        }
-
-        table.sort(input_signals, sorts[settings.index_order])
-
-        local signal = input_signals[lua_index]
-
-        -- Write the signal to the output constant combinator.
-        control_behavior.parameters = {
-            {
+        -- Determine if we actually need to update our output
+        if cache.old_output_count ~= signal.count or cache.old_output_name ~= signal.signal.name then
+            cache.old_output_name = signal.signal.name
+            cache.old_output_count = signal.count
+            selector.control_behavior.parameters = {{
                 signal = signal.signal,
                 count = signal.count,
-                index = 1,
-            },
-        }
+                index = 1
+            }}
+        end
 
-        return
-    end
-
-    if mode == "random_input" then
+    elseif mode == "random_input" then
         local signal = input_signals[global.rng(#input_signals)]
 
-        control_behavior.parameters = {{
+        selector.control_behavior.parameters = {{
             signal = signal.signal,
             count = signal.count,
             index = 1
         }}
-    end
 
-    if mode == "count_inputs" then
-        local count_signal = settings.count_signal
-
-        if not count_signal then
-            control_behavior.parameters = nil
-
-            return
+    elseif mode == "count_inputs" then
+        -- if our number of inputs has changed, and we have a configured signal, update only the count in our cache, then output
+        if #input_signals ~= cache.input_count and settings.count_signal then
+            cache.input_count = #input_signals
+            cache.output[1].count = cache.input_count
+            selector.control_behavior.parameters = cache.output
         end
 
-        local signal_count = #input_signals
-
-        control_behavior.parameters = {
-            {
-                signal = count_signal,
-                count = signal_count,
-                index = 1,
-            },
-        }
-
-        return
-    end
-
-    if mode == "stack_size" then
+    elseif mode == "stack_size" then
         local parameters = {}
 
         for _, signal in pairs(input_signals) do
@@ -261,24 +305,21 @@ function SelectorSimulation.update_combinator(selector)
             end
         end
 
-        control_behavior.parameters = parameters
-
-        return
-    end
+        selector.control_behavior.parameters = parameters
 
     -- Quality signals, as defined in janky quality, end with a prefix '-quality-N', where N is a number from 2 to 5.
-    if mode == "quality_transfer" then
+    elseif mode == "quality_transfer" then
         local quality_selection_signal = settings.quality_selection_signal
 
         if not quality_selection_signal then
-            control_behavior.parameters = nil
+            selector.control_behavior.parameters = nil
             return
         end
 
         local quality_target_signal = settings.quality_target_signal
 
         if not quality_target_signal then
-            control_behavior.parameters = nil
+            selector.control_behavior.parameters = nil
             return
         end
 
@@ -291,7 +332,7 @@ function SelectorSimulation.update_combinator(selector)
         local selection_suffix = first_suffix_of(red_network, green_network, selection_name_stripped, quality_selection_signal.type)
 
         if not selection_suffix then
-            control_behavior.parameters = nil
+            selector.control_behavior.parameters = nil
             return
         end
 
@@ -335,7 +376,7 @@ function SelectorSimulation.update_combinator(selector)
                 counter = counter + 1
             end
 
-            control_behavior.parameters = parameters
+            selector.control_behavior.parameters = parameters
         else
             local total_of_input = 0
 
@@ -352,7 +393,7 @@ function SelectorSimulation.update_combinator(selector)
             end
 
             if total_of_input == 0 then
-                control_behavior.parameters = nil
+                selector.control_behavior.parameters = nil
                 return
             else
                 local signal = {
@@ -360,7 +401,7 @@ function SelectorSimulation.update_combinator(selector)
                     type = quality_target_signal.type,
                 }
 
-                control_behavior.parameters = {
+                selector.control_behavior.parameters = {
                     {
                         signal = signal,
                         count = total_of_input,
@@ -372,6 +413,44 @@ function SelectorSimulation.update_combinator(selector)
             end
         end
     end
+end
+
+-- Reset the caches of a selector and force an update.
+-- Trigger this whenever we migrate, change anything in the Selector GUI, or paste settings.
+-- By doing this work only when settings change, we minimize the work required in on_tick.
+function SelectorSimulation.clear_caches_and_force_update(selector)
+    -- 1. reset cache and output
+    selector.cache = {}
+    selector.control_behavior.parameters = nil
+
+    -- 2. Detect the mode and create just the caches we need
+    if selector.settings.mode == "index" then
+        selector.cache.old_inputs = {}
+
+    elseif selector.settings.mode == "count_inputs" then
+        selector.cache.input_count = 0
+
+        if selector.settings.count_signal then
+            selector.cache.output = {{
+                signal = selector.settings.count_signal,
+                -- Don't set .count; it will be written before we ever output it.
+                index = 1
+            }}
+        end
+
+    elseif selector.settings.mode == "random_input" then
+        local placeholder = 0
+
+    elseif selector.settings.mode == "stack_size" then
+        local placeholder = 0
+
+    elseif selector.settings.mode == "quality_transfer" then
+        local placeholder = 0
+
+    end
+
+    -- 3. update this combinator
+    SelectorSimulation.update_combinator(selector)
 end
 
 function SelectorSimulation.update()

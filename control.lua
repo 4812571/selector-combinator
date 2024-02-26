@@ -26,10 +26,6 @@ local function on_entity_settings_pasted(event)
         return
     end
 
-    local source_unit_number = source.unit_number
-    local destination_unit_number = destination.unit_number
-
-    -- Replace source and destination with the underlying Selectors
     source = global.selector_combinators[source.unit_number]
     destination = global.selector_combinators[destination.unit_number]
 
@@ -38,6 +34,9 @@ local function on_entity_settings_pasted(event)
     destination.settings = util.table.deepcopy(source.settings)
 
     SelectorAppearance.update_combinator_appearance(destination)
+    
+    -- Get this selector into its running state
+    SelectorSimulation.clear_caches_and_force_update(destination)
 end
 
 local function get_blueprint(event)
