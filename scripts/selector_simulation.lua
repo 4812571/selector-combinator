@@ -158,6 +158,8 @@ function SelectorSimulation.update_combinator(selector)
             cache.old_output_count = 0
         elseif mode == "count_inputs" then
             cache.input_count = 0
+        elseif mode == "stack_size" and #cache.old_inputs ~= 0 then
+            cache.old_inputs = {}
         end
 
         selector.control_behavior.parameters = nil
@@ -289,19 +291,36 @@ function SelectorSimulation.update_combinator(selector)
         end
 
     elseif mode == "stack_size" then
-        local parameters = {}
+        local inputs_match = true
+    
+        if #input_signals < #cache.old_inputs then
+            cache.old_inputs = {}
+            inputs_match = false
+        end
 
+        local old_inputs = cache.old_inputs
+        for i=1, #input_signals do
+            local name = input_signals[i].signal.name
+            if name ~= old_inputs[i] then
+                -- correct mismatch, flag mismatch, and continue comparing
+                old_inputs[i] = name
+                inputs_match = false
+            end
+        end
+
+        if inputs_match then return end
+
+        local parameters = {}
+        local i = 1
         for _, signal in pairs(input_signals) do
             local item_prototype = game.item_prototypes[signal.signal.name]
-
             if item_prototype then
-                local stack_size = item_prototype.stack_size
-
-                table.insert(parameters, {
+                parameters[i] = {
                     signal = signal.signal,
-                    count = stack_size * signal.count,
-                    index = 1,
-                })
+                    count = item_prototype.stack_size,
+                    index = i
+                }
+                i = i + 1
             end
         end
 
@@ -442,7 +461,7 @@ function SelectorSimulation.clear_caches_and_force_update(selector)
         local placeholder = 0
 
     elseif selector.settings.mode == "stack_size" then
-        local placeholder = 0
+        selector.cache.old_inputs = {}
 
     elseif selector.settings.mode == "quality_transfer" then
         local placeholder = 0
