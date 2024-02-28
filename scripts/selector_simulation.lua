@@ -158,6 +158,9 @@ function SelectorSimulation.update_combinator(selector)
             cache.old_output_count = 0
         elseif mode == "count_inputs" then
             cache.input_count = 0
+        elseif mode == "random_input" then
+            cache.old_output_name = nil
+            cache.old_output_count = 0
         elseif mode == "stack_size" and #cache.old_inputs ~= 0 then
             cache.old_inputs = {}
         end
@@ -274,13 +277,25 @@ function SelectorSimulation.update_combinator(selector)
         end
 
     elseif mode == "random_input" then
-        local signal = input_signals[global.rng(#input_signals)]
+        local n_input_signals = #input_signals
+        local signal
 
-        selector.control_behavior.parameters = {{
-            signal = signal.signal,
-            count = signal.count,
-            index = 1
-        }}
+        if n_input_signals > 1 then
+            signal = input_signals[global.rng(n_input_signals)]
+        else
+           signal = input_signals[1]
+        end
+
+        -- Determine if we actually need to update our output
+        if cache.old_output_count ~= signal.count or cache.old_output_name ~= signal.signal.name then
+            cache.old_output_name = signal.signal.name
+            cache.old_output_count = signal.count
+            selector.control_behavior.parameters = {{
+                signal = signal.signal,
+                count = signal.count,
+                index = 1
+            }}
+        end
 
     elseif mode == "count_inputs" then
         -- if our number of inputs has changed, and we have a configured signal, update only the count in our cache, then output
