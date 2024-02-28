@@ -171,14 +171,15 @@ function SelectorSimulation.update_combinator(selector)
 
     if mode == "index" then
         local old_inputs = cache.old_inputs
-        if #input_signals == #old_inputs then
-            local new_sig
-            local old_sig
+        local n_input_signals = #input_signals
+        
+        -- 1. Check to see if our inputs are unchanged.
+        if n_input_signals == #old_inputs then
             local inputs_match = true
 
-            for i=1, #input_signals do
-                new_sig = input_signals[i]
-                old_sig = old_inputs[i]
+            for i=1, n_input_signals do
+                local new_sig = input_signals[i]
+                local old_sig = old_inputs[i]
                 if new_sig.count ~= old_sig.count or new_sig.signal.name ~= old_sig.signal.name then
                     -- correct mismatch, flag mismatch, and continue comparing
                     old_inputs[i] = new_sig
@@ -189,14 +190,36 @@ function SelectorSimulation.update_combinator(selector)
             if inputs_match then return end
         else
             -- the input count mismatches, update the cache
-            cache.old_inputs = input_signals
+            cache.old_inputs = {}
+            local old_inputs = cache.old_inputs
+            for i=1, n_input_signals do
+                old_inputs[i] = input_signals[i]
+            end
         end
 
         local index_signal = settings.index_signal
+        local index
+
+        -- 2. Get the index. If an index signal is provided, find and remove it from among the inputs.
+        if index_signal then
+            index = 1
+            local name = index_signal.name
+            for i, v in ipairs(input_signals) do
+                if v.signal.name == name then
+                    index = v.count + 1
+                    table.remove(input_signals, i)
+                    n_input_signals = n_input_signals - 1
+                    break
+                end
+            end
+        else
+            index = settings.index_constant + 1
+        end
+
         local signal
 
-        if not index_signal and settings.index_constant == 0 then
-            -- optimize for the common case of searching for min or max
+        -- 3. Select the n-th signal, optimizing for the common cases of searching for min or max.
+        if index == 1 then
             signal = input_signals[1]
             local count = signal.count
             if settings.index_order == "ascending" then
@@ -214,58 +237,18 @@ function SelectorSimulation.update_combinator(selector)
                     end
                 end
             end
-        else
-            local index = 0
-
-            if index_signal then
-                local red_input_network = selector.input_entity.get_circuit_network(defines.wire_type.red, defines.circuit_connector_id.combinator_input)
-                local green_input_network = selector.input_entity.get_circuit_network(defines.wire_type.green, defines.circuit_connector_id.combinator_input)
-
-                local red_signal = 0
-
-                if red_input_network then
-                    red_signal = red_input_network.get_signal(index_signal)
-                end
-
-                local green_signal = 0
-
-                if green_input_network then
-                    green_signal = green_input_network.get_signal(index_signal)
-                end
-
-                index = red_signal + green_signal
-
-                -- Remove the index signal from the input signals
-                for i, v in ipairs(input_signals) do
-                    if v.signal.name == index_signal.name then
-                        table.remove(input_signals, i)
-                        break
-                    end
-                end
-            else
-                index = settings.index_constant or 0
-            end
-
-            local lua_index = index + 1
-
-            -- If the input signal is out of bounds, write nothing to the output constant combinator.
-            if lua_index < 1 or lua_index > #input_signals then
-                selector.control_behavior.parameters = nil
-
-                return
-            end
-
-            local sorts = {
-                ["ascending"] = function(a, b) return a.count < b.count end,
-                ["descending"] = function(a, b) return a.count > b.count end,
-            }
-
-            table.sort(input_signals, sorts[settings.index_order])
-
-            signal = input_signals[lua_index]
+        elseif index < 1 or index > n_input_signals then
+            -- The input signal is out of bounds, clear the cache and the output
+            cache.old_output_name = nil
+            cache.old_output_count = 0
+            selector.control_behavior.parameters = nil
+            return
+        else -- The index is valid and greater than 1, we must sort
+            table.sort(input_signals, cache.sort)
+            signal = input_signals[index]
         end
 
-        -- Determine if we actually need to update our output
+        -- 4. Update our output if we need to.
         if cache.old_output_count ~= signal.count or cache.old_output_name ~= signal.signal.name then
             cache.old_output_name = signal.signal.name
             cache.old_output_count = signal.count
@@ -460,6 +443,12 @@ function SelectorSimulation.clear_caches_and_force_update(selector)
     -- 2. Detect the mode and create just the caches we need
     if selector.settings.mode == "index" then
         selector.cache.old_inputs = {}
+
+        if selector.settings.index_order == "ascending" then
+            selector.cache.sort = function(a, b) return a.count < b.count end
+        else
+            selector.cache.sort = function(a, b) return a.count > b.count end
+        end
 
     elseif selector.settings.mode == "count_inputs" then
         selector.cache.input_count = 0
