@@ -151,28 +151,33 @@ function SelectorSimulation.update_combinator(selector)
     local cache = selector.cache
 
     if input_signals == nil then
-        -- clear any cached state required
-        if mode == "index" and #cache.old_inputs ~= 0 then
-            cache.old_inputs = {}
-            cache.old_output_name = nil
-            cache.old_output_count = 0
-        elseif mode == "count_inputs" then
-            cache.input_count = 0
-        elseif mode == "random_input" then
-            cache.old_output_name = nil
-            cache.old_output_count = 0
-        elseif mode == "stack_size" and #cache.old_inputs ~= 0 then
-            cache.old_inputs = {}
-        end
+        if not cache.previous_input_was_nil then
+            -- clear any cached state required
+            if mode == "index" and #cache.old_inputs ~= 0 then
+                cache.old_inputs = {}
+                cache.old_output_name = nil
+                cache.old_output_count = 0
+            elseif mode == "count_inputs" then
+                cache.input_count = 0
+            elseif mode == "random_input" then
+                cache.old_output_name = nil
+                cache.old_output_count = 0
+            elseif mode == "stack_size" and #cache.old_inputs ~= 0 then
+                cache.old_inputs = {}
+            end
 
-        selector.control_behavior.parameters = nil
+            selector.control_behavior.parameters = nil
+            cache.previous_input_was_nil = true
+        end
         return
     end
+
+    cache.previous_input_was_nil = false
 
     if mode == "index" then
         local old_inputs = cache.old_inputs
         local n_input_signals = #input_signals
-        
+
         -- 1. Check to see if our inputs are unchanged.
         if n_input_signals == #old_inputs then
             local inputs_match = true
@@ -290,7 +295,7 @@ function SelectorSimulation.update_combinator(selector)
 
     elseif mode == "stack_size" then
         local inputs_match = true
-    
+
         if #input_signals < #cache.old_inputs then
             cache.old_inputs = {}
             inputs_match = false
