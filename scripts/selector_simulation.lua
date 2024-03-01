@@ -15,7 +15,7 @@ local SelectorSimulation = {}
 -- "stack_size"
 -- - output the stack sizes of the input signals
 
--- "quality transfer"
+-- "quality_transfer"
 -- - transfer the quality of an input signal to the output signal(s)
 
 function SelectorSimulation.init()
@@ -264,6 +264,14 @@ function SelectorSimulation.update_combinator(selector)
             }}
         end
 
+    elseif mode == "count_inputs" then
+        -- if our number of inputs has changed, and we have a configured signal, update the count in our cache, then output
+        if #input_signals ~= cache.input_count and settings.count_signal then
+            cache.input_count = #input_signals
+            cache.output[1].count = cache.input_count
+            selector.control_behavior.parameters = cache.output
+        end
+
     elseif mode == "random_input" then
         local n_input_signals = #input_signals
         local signal
@@ -275,7 +283,7 @@ function SelectorSimulation.update_combinator(selector)
         end
 
         -- Determine if we actually need to update our output
-        if cache.old_output_count ~= signal.count or cache.old_output_name ~= signal.signal.name then
+        if signal.count ~= cache.old_output_count or signal.signal.name ~= cache.old_output_name then
             cache.old_output_name = signal.signal.name
             cache.old_output_count = signal.count
             selector.control_behavior.parameters = {{
@@ -283,14 +291,6 @@ function SelectorSimulation.update_combinator(selector)
                 count = signal.count,
                 index = 1
             }}
-        end
-
-    elseif mode == "count_inputs" then
-        -- if our number of inputs has changed, and we have a configured signal, update only the count in our cache, then output
-        if #input_signals ~= cache.input_count and settings.count_signal then
-            cache.input_count = #input_signals
-            cache.output[1].count = cache.input_count
-            selector.control_behavior.parameters = cache.output
         end
 
     elseif mode == "stack_size" then
@@ -416,22 +416,17 @@ function SelectorSimulation.update_combinator(selector)
 
             if total_of_input == 0 then
                 selector.control_behavior.parameters = nil
-                return
             else
                 local signal = {
                     name = target_name_stripped .. selection_suffix,
                     type = quality_target_signal.type,
                 }
 
-                selector.control_behavior.parameters = {
-                    {
+                selector.control_behavior.parameters = {{
                         signal = signal,
                         count = total_of_input,
-                        index = 1,
-                    },
-                }
-
-                return
+                        index = 1
+                    }}
             end
         end
     end
@@ -466,14 +461,8 @@ function SelectorSimulation.clear_caches_and_force_update(selector)
             }}
         end
 
-    elseif selector.settings.mode == "random_input" then
-        local placeholder = 0
-
     elseif selector.settings.mode == "stack_size" then
         selector.cache.old_inputs = {}
-
-    elseif selector.settings.mode == "quality_transfer" then
-        local placeholder = 0
 
     end
 
