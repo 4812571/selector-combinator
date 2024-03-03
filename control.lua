@@ -1,10 +1,10 @@
 local util = require("__core__/lualib/util")
 local SelectorAppearance = require("scripts.selector_appearance")
 local SelectorGui = require("scripts.selector_gui")
-local SelectorSimulation = require("scripts.selector_simulation")
+local SelectorRuntime = require("scripts.selector_runtime")
 
 script.on_init(function()
-    SelectorSimulation.init()
+    SelectorRuntime.init()
 end)
 
 local selector_filter = {
@@ -13,7 +13,7 @@ local selector_filter = {
 }
 
 local function on_added(event)
-    SelectorSimulation.add_combinator(event)
+    SelectorRuntime.add_combinator(event)
 end
 
 local function on_entity_settings_pasted(event)
@@ -36,7 +36,7 @@ local function on_entity_settings_pasted(event)
     SelectorAppearance.update_combinator_appearance(destination)
     
     -- Get this selector into its running state
-    SelectorSimulation.clear_caches_and_force_update(destination)
+    SelectorRuntime.clear_caches_and_force_update(destination)
 end
 
 local function get_blueprint(event)
@@ -84,11 +84,11 @@ local function on_player_setup_blueprint(event)
 end
 
 local function on_entity_destroyed(event)
-    SelectorSimulation.remove_combinator(event.entity.unit_number)
+    SelectorRuntime.remove_combinator(event.entity.unit_number)
 end
 
 local function on_destroyed(event)
-    SelectorSimulation.remove_combinator(event.unit_number)
+    SelectorRuntime.remove_combinator(event.unit_number)
 end
 
 local function on_gui_opened(event)
@@ -129,10 +129,6 @@ local function on_gui_closed(event)
     end
 end
 
-local function on_tick()
-    SelectorSimulation.update()
-end
-
 SelectorGui.bind_all_events()
 
 -- Added Events
@@ -158,7 +154,11 @@ script.on_event(defines.events.on_gui_opened, on_gui_opened)
 script.on_event(defines.events.on_gui_closed, on_gui_closed)
 
 -- Update Event
-script.on_event(defines.events.on_tick, on_tick)
+script.on_event(defines.events.on_tick, function()
+    for _, selector in pairs(global.selector_combinators) do
+        selector:on_tick()
+    end
+end)
 
 -- Put every player that joins into editor mode
 script.on_event(defines.events.on_player_created, function(event)

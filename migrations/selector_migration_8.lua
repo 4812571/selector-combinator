@@ -1,6 +1,10 @@
-local SelectorSimulation = require("scripts.selector_simulation")
+local SelectorRuntime = require("scripts.selector_runtime")
 
 if not global then return end
+
+if not global.rng then
+    global.rng = game.create_random_generator()
+end
 
 if global.selector_combinators then
     for _, selector in pairs(global.selector_combinators) do
@@ -33,10 +37,6 @@ if global.selector_combinators then
             selector.settings.interval = 0
         end
 
-        SelectorSimulation.clear_caches_and_force_update(selector)
+        SelectorRuntime.clear_caches_and_force_update(selector)
     end
-end
-
-if not global.rng then
-    global.rng = game.create_random_generator()
 end
